@@ -1,0 +1,1776 @@
+---
+title: "Ontario Community Housing Stock Breakdown (in progress)"
+author: "Ontario Non-Profit Housing Association"
+date: "2025-05-05"
+output:
+  html_document:
+    toc: true                
+    toc_float: true         
+    number_sections: true    
+    css: custom-style.css    
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.align = 'center', dev = 'png', out.extra = 'class="center-output"')
+library(tidyverse)
+library(ggplot2)
+library(tidyr)
+library(kableExtra)
+library(ggiraph)
+#library(showtext)
+#library(onphaTheme)
+library(ggtext)
+library(ggiraph)
+library(htmltools)
+library(htmlwidgets)
+
+dp_23 <- "../Freedom of Information Request MMAH 2024-172/2024-172 - Responsive Record 2 (2023).xlsx"
+dp_20_22 <- "../Freedom of Information Request MMAH 2024-172/2024-172 - Responsive Record 1 (2020-2022).xlsx"
+
+# Set fonts
+  sysfonts::font_add_google("Gabarito", "gabarito", db_cache = FALSE)
+  showtext::showtext_auto() 
+  font_family <- "gabarito"
+  font_colour <- "#282828"
+
+  
+highlight_colour = "#ec008c"
+highlight_colour2 = "gray30"
+alternate_colour = "#0693e3"
+alternative <- "grey65"
+
+onpha_pallette <- c("#f78da7","#0693e3","#fcb900", "#9b51e0", "#ff6900")
+
+lab_size <- 5
+lab_size_grid <- 7
+lab_size_widget <- 3
+
+nhs_plot_size_reduction <- -18
+
+darker_gray_colour <- "#5f5f5f"
+ gray_colour <- "#BFBFBF"
+   purple_gradient <- c("#c9c3ff", "#a092ff", "#8661eb", "#5e24b3", "#37007B")
+  green_gradient <- c("#b6fc77", "#56d444", "#35a626", "#2b8520", "#26661f")
+  distinctive_palette <- c("#D30C55", "#FCBCDA", "#FF8004", "#F9C606")
+  
+add_size <- 2
+
+custom_theme <- function(base_size = 14, add_size = 0, base_theme = ggplot2::theme_minimal()) {
+  base_theme +   theme(
+    #axis.text.x = element_text(angle = 0, hjust = 0.5, size = 12),
+    #plot.title = element_text(hjust = 0.5, size = 16),
+   # axis.text.y = element_text(size = 10),
+     plot.margin = margin(8, 8, 0, 8),
+      plot.title = element_text(size = 30 + add_size, lineheight = 0.9, face = "bold", margin = margin(0, 0, 6, 0)),
+      plot.title.position = "plot",
+      #plot.caption = element_text(colour = darker_gray_colour, size = 12, margin = margin(6, 4, 2, 20), hjust = 0),
+      #plot.caption.position = "plot",
+      #axis.title.x = element_text(face = "plain", size = 24, margin = margin(6, 0, 0, 0), lineheight = 0.9, hjust = 0.5, angle = 0),
+      axis.title.x = element_blank(),
+      axis.title.y = element_text(face = "plain", size = 26+ add_size, margin = margin(0, 6, 0, 0), lineheight = 0.9, hjust = 0.5),
+      axis.text.x = element_text(face = "plain", size = 20+ add_size, lineheight = 0.9),
+      axis.text.y = element_text(face = "plain", size = 18+ add_size),
+      axis.ticks.x = element_line(colour = gray_colour, linewidth = 0.25),
+     axis.ticks.y = element_blank(),
+      axis.ticks.length = unit(0, "mm"),
+      axis.line.x = element_line(linewidth = 0.25, colour = gray_colour), 
+      text = element_text(colour = font_colour),
+    # axis.title.x = element_blank(),
+    legend.text = element_text(size=22+ add_size, lineheight = 0.9),
+    legend.title = element_text(size=22+ add_size, face = "bold"),
+    plot.caption = ggtext::element_markdown(size = 14+ add_size, hjust = 0, color = "grey50", margin = margin(t = 10, l = 5)),
+         strip.text = element_text(size = 24+ add_size))  + 
+  #scale_y_continuous(labels = scales::comma) +
+  labs(
+    x = element_blank())
+}
+
+
+
+# Read the data
+dat <- readxl::read_excel("C:/Users/akfra/Documents/GitHub/ONPHA/CMHC data/data/NHS Project List - December 2024.xlsx") |> janitor::clean_names()
+
+# Define the program mapping
+program_mapping <- c(
+  "Affordable Housing Fund" = "AHF",
+  "Rapid Housing Initiative" = "RHI",
+  "Rapid Housing Initiative 2" = "RHI",
+  "Rapid Housing Initiative 3" = "RHI",
+  "Apartment Construction Loan Program" = "ACLP",
+  "Affordable Housing Innovation Fund" = "AHIF",
+  "Affordable Housing Innovation Fund 2.0" = "AHIF",
+  "Federal Land Initiative" = "FLI",
+  "Federal Land Disposition" = "FLD"
+)
+
+# Define the province mapping
+province_mapping <- c(
+  "British Columbia" = "BC",
+  "Nova Scotia" = "NS",
+  "Alberta" = "AB",
+  "Ontario" = "ON",
+  "Manitoba" = "MB",
+  "Yukon" = "YT",
+  "Quebec" = "QC",
+  "New Brunswick" = "NB",
+  "Northwest Territories" = "NT",
+  "Nunavut" = "NU",
+  "Newfoundland and Labrador" = "NL",
+  "Saskatchewan" = "SK",
+  "Prince Edward Island" = "PE"
+)
+
+# Apply the mappings and clean the data
+dat <- dat |> 
+  mutate(
+    #Province = str_trim(sub("^.*,(//s*)", "", Location)),
+    province = recode(province_territory_en, !!!province_mapping),
+    program = recode(program_name_en, !!!program_mapping),
+    province = factor(province, levels = c("BC", "AB", "SK", "MB", "ON", "QC", "NB", "NS", "PE", "NL", "YT", "NT", "NU")))
+
+```
+
+This analysis primarily focuses on data from Service Manager Annual Information Returns (SMAIR), obtained through Freedom of Information Requests. We were provided with data for years 2020-2023.  
+
+For this analysis I am focused on housing stock. This data suggests certain categories of units have undergone significant loss. The next step of this work should be to contextualize what is happening and engage relevant service managers. Points of opportunity are laid out through the analysis. 
+
+# Community Housing Stock Breakdown
+
+```{r load-data}
+# Load data from Excel files and preprocess
+units_23 <- readxl::read_excel(dp_23, sheet = "Unit") |>
+  mutate(Year = as.double(Year))
+
+units_20_22 <- readxl::read_excel(dp_20_22, sheet = "Units") |>
+  rename(
+    Year = "YEAR",
+    SMSymbol = "SMsymbol",
+    `RGI Household Below HILs` = "RGI households with incomes at or below the HILs",
+    `RGI Household Above HILs` = "RGI households with incomes above the HILs",
+    `Household in Market/LowEndMarket` = "Households in market/low-end of market units",
+    `Units Vacant` = "Vacant units",
+    `Total Units` = "Unit_Total"
+  )
+
+ham_units_2023 <- units_20_22 |>
+  filter(SMSymbol == "HAM" & Year == 2022) |>
+  mutate(Year = 2023)
+
+# Combine all datasets and recode Program column
+units <- bind_rows(units_23, units_20_22, ham_units_2023) |>
+  mutate(
+    Program = recode(
+      Program,
+      "01Public Housing" = "01Public Housing",
+      "02RS" = "02Rent Supplement",
+      "05Section 95 PNP" = "05Section 95 Private Non-Profit",
+      "06Provincial Reformed" = "06Provincial Reformed",
+      "06Section 95 MNP" = "06Section 95 Municipal Non-Profit",
+      "07Post 85 UN" = "07Post 85 Urban Native",
+      "08Pre 86 UN" = "08Pre 86 Urban Native",
+      "11Service_Agreements" = "11Service_Agreements"
+    )
+  )
+
+unit_summary <- units |>
+    #filter(!SMSymbol %in% c("MCS", "MOH", "DEB", "HAM")) |>
+  select(`Total Units`, Year, Program) |>
+  group_by(Year, Program) |>
+  summarize(`Total Units` = sum(`Total Units`, na.rm = TRUE), .groups = "drop")
+
+
+
+nhs_units <- readxl::read_excel("C:/Users/akfra/Documents/GitHub/ONPHA/SMAIR_data/data/data-nhs-projects-map_20241130.xlsx") |> janitor::clean_names() |>
+  filter(grepl("Ontario", location, ignore.case = T) & project_type == "New Construction" & (grepl("affordable|rapid", program, ignore.case = T) | grepl("apartment construction", program, ignore.case = T) & proponent_type != "Private Enterprise/Builder/Developer")) |> # select only programs that relate to community housing - this will remove ACLP and Federal Land Disposition (there are 0 affordable units under this program ATM)
+  mutate(program = ifelse(grepl("Rapid", program, ignore.case = T), "Rapid Housing Initiative", program))
+```
+
+* There are 222,311 total units reported by Service Managers in 2023 annual report. This is a large portion of the total community housing stock estimated by CMHC in their 2023 Social and Affordable Housing Survey.
+* CMHC estimated that there are 65,000 units in Ontario that receive funding only from the Federal government, and 44,000 units that have no funding agreement. 
+
+* NOTE: based on conversations I've had with CMHC to better understand their methodology, I suspect the overall count is an overestimation. They stated they are improving their methodology for Ontario, including working closely with MMAH, and the soon to be released updated survey data should have big improvements. 
+
+
+```{r pie-chart, fig.height=4}
+
+# Your data
+units_category_breakdown <- data.frame(
+  "Sector-Wide Unit Categories" = c("Service Manager Data",  "Other types of govt and non-govt", "Federally Funded Only", "No Funding Agreement"),
+  "Number of Units" = c(sum(units$`Total Units`[units$Year==2023]), 1025+13222, 64961, 43936)
+)
+
+
+units_category_breakdown <- units_category_breakdown %>%
+  mutate(Sector.Wide.Unit.Categories = factor(Sector.Wide.Unit.Categories, levels = c("Service Manager Data",  "Other types of govt and non-govt", "Federally Funded Only", "No Funding Agreement"))) |>
+  arrange(desc(Sector.Wide.Unit.Categories)) %>% 
+  mutate(
+    Percentage = round(Number.of.Units / sum(Number.of.Units) * 100, 1),
+    Label = paste0(scales::comma(Number.of.Units), " (", Percentage, "%)"),
+    Cumulative = (cumsum(Number.of.Units) - (Number.of.Units / 2)) - 180, # Midpoint for each segment
+    Opacity = ifelse(Sector.Wide.Unit.Categories == "Service Manager Data", 1, 0.7), # Example condition for opacity    
+    )
+
+# Define custom colors
+custom_colors <- c(
+  "Service Manager Data" = "#66c2a5", # Example color
+  "Other types of govt and non-govt" = "grey", # Gray for this category
+  "Federally Funded Only" = "#fc8d62", # Example color
+  "No Funding Agreement" = "#8da0cb" # Example color
+)
+
+# Pie chart with specific gray category
+ggplot(units_category_breakdown, aes(x = "", y = Number.of.Units, fill = Sector.Wide.Unit.Categories)) +
+  geom_bar(stat = "identity", width = 1, color = "white", aes(alpha = Opacity)) +
+  scale_alpha(range = c(0.5, 1), guide = "none") + # Suppresses the alpha legend
+
+  coord_polar(theta = "y") +
+  theme_void() + # Removes axes and background
+  theme(
+    legend.title = element_blank(),
+    #plot.title = element_text(hjust = 0.5, size = 16),
+    legend.position = "right",
+    plot.margin = margin(8, 8, 0, 8),
+      plot.title = element_text(size = 30 + add_size, lineheight = 0.9, face = "bold", margin = margin(0, 0, 6, 0)),
+      plot.title.position = "plot",
+      text = element_text(colour = font_colour),
+    # axis.title.x = element_blank(),
+    legend.text = element_text(size=22+ add_size),
+    #legend.title = element_text(size=22+ add_size, face = "bold"),
+    plot.caption = ggtext::element_markdown(size = 14+ add_size, hjust = 0, color = "grey50", margin = margin(t = 10, l = 5)),
+         strip.text = element_text(size = 24+ add_size)
+  ) +
+  scale_fill_manual(values = custom_colors) + # Apply custom colors
+  ggrepel::geom_label_repel(
+    aes(y = Cumulative, label = Label),
+    size = 6,
+    nudge_x = 1,
+    show.legend = FALSE
+  ) +
+  labs(title = "Service Manager Units as Portion of Total Community Housing 'Universe'")
+
+```
+
+## New Supply of Community Housing
+
+New supply is largely driven by National Housing Strategy programs. Here is an overview of units completed up to the end of 2024, as well as units in the pipeline. New units completed are fairly modest, but units in the pipeline will hopefully outpace the gradual loss of units being observed within the HSA framework, which is broken down further in this report.
+
+Note that I excluded units that are delivered through "Private Enterprise" when they are the lead proponent of the project. 
+
+```{r builds-by-status, fig.width = 7, fig.height = 2}
+ 
+on_builds <- dat |>
+   filter(province == "ON") |>
+  filter(!is.na(project_status_en) & !is.na(map_category_en_new) & map_category_en_new == "New Construction") |>
+  mutate(unaffordable_units = number_of_units - number_of_affordable_units) |>
+  pivot_longer(
+    cols = c("number_of_affordable_units", "number_of_units", "unaffordable_units"), 
+    names_to = "Unit Type", 
+    values_to = "number_of_units"
+  ) |>
+  mutate(
+        project_status_en = ifelse(project_status_en == "Financial Commitment", "Financial Commitment", project_status_en),
+        project_status_en = ifelse(project_status_en == "Built", "Complete", project_status_en),
+        provider_category = ifelse(ultimate_recipient_type_en %in% c("Private Enterprise/Builder/Developer", "Partnership", "Other (Please specify)"),  "For-Profit Entity", "Community Housing")) |>
+  filter(provider_category == "Community Housing")
+
+
+
+units_builds_status <- on_builds |>
+  
+  group_by(project_status_en, `Unit Type`) |> 
+  summarize("Unit Count" = sum(number_of_units, na.rm = TRUE), .groups = 'drop') |>
+  mutate(`Unit Type` = recode(`Unit Type`, 
+    "number_of_affordable_units" = "Affordable Units",
+    "unaffordable_units" = "Unaffordable Units"),
+    project_status_en = factor(project_status_en, 
+      levels = rev(c("Financial Commitment", "In Progress", "Complete"))
+    ))
+
+
+p3 <- units_builds_status |>
+  filter(`Unit Type` != "number_of_units") |>
+  ggplot(aes(x = `Unit Type`, y = `Unit Count`, fill = `Unit Type`)) +
+  geom_col_interactive(position = position_dodge()) +
+  geom_text(
+    #data = labels,
+    aes(x = `Unit Type`, y = `Unit Count`, label = scales::comma(`Unit Count`)),
+vjust = -0.5,
+    size = lab_size_widget,
+    inherit.aes = FALSE
+  ) +
+  labs(
+    title = "A. NHS-Funded Construction of New Commnity Housing in Ontario",
+    y = "Number of Units",  # This becomes the y-axis due to `coord_flip()`
+    x = element_blank(),  # Prevents a duplicated title
+    fill = element_blank()
+  ) +
+  scale_y_continuous(labels = scales::comma, expand = expansion(mult = c(0.05, 0.5))) +
+  scale_fill_brewer(palette = "Set2", direction = 1) +
+  custom_theme(base_theme = theme_bw(), add_size = nhs_plot_size_reduction) +
+  theme(
+    #legend.position = "none",
+    #plot.title = element_text(size = 14, face = "bold"),
+    legend.text = element_text(size = 8),
+    #axis.text.x = element_blank(),
+    #axis.text.x = element_text(angle = 30, hjust = 1),
+    axis.text.x = element_blank(),
+    axis.text.y = element_blank(),
+    legend.position = "top"
+  ) +
+  facet_wrap(~project_status_en) 
+
+p3 <- girafe(
+  ggobj = p3,
+  options = list(opts_zoom(min = 0.21, max = 10))
+  #width_svg = 7,    # Set the width of the output in inches
+ # height_svg = 3    # Set the height of the output in inches
+)
+
+combined <- tagList(
+  tags$div(
+    style = "display: flex; justify-content: space-between; align-items: center; margin-bottom: -5px;",
+    tags$div(style = "flex: 1; margin-right: 10px;", p3)
+  )
+  # tags$p(
+  #   style = "text-align: left; margin-top: -5px; font-style: italic; color: #989898;",
+  #   HTML(
+  #     "Note: this plot is interactive. Look at the icons on the top right of each plot to enable different interactive actions, such as scrolling in or zooming. Hover over the bars to see more details about the funding amounts and programs.<br><br>These are units funded throughout the duration of the Rapid Housing Initiative, Apartment Construction Loan Program, Affordable Housing Fund, Affordable Housing Innovation Fund, and the Federal Lands Initiative. These numbers include projects where the lead proponent is a non-profit, co-op, municipality, province, or Indigenous organization."
+  #   )
+  #)
+)
+
+
+# Save or display
+browsable(combined)
+
+```
+
+
+```{r builds-by-proponent, fig.width = 7, fig.height=3}
+proponents <- on_builds |>
+  group_by(ultimate_recipient_type_en, project_status_en, `Unit Type`) |>
+  summarize("Unit Count" = sum(number_of_units, na.rm = TRUE), .groups = 'drop') |>
+ filter( !grepl("Financial",project_status_en)) |>
+  mutate(ultimate_recipient_type_en = recode(ultimate_recipient_type_en,
+                "Not-for-profit housing org/Co-op" = "Non-Profit / Co-op",
+                "Indigenous Non-Profit Organization" = "Indigenous Non-Profit"
+                ),
+    ultimate_recipient_type_en = factor(ultimate_recipient_type_en, 
+    levels = c("Non-Profit / Co-op", "Municipality","Indigenous Governing Body", "Indigenous Group", "Faith-based organization", "Indigenous Non-Profit")),
+    `Unit Type` = recode(`Unit Type`,
+      "number_of_affordable_units" = "Affordable Units",
+      "unaffordable_units" = "Unaffordable Units",
+      number_of_units = "number_of_units"),
+    `Unit Type` = factor(`Unit Type`, levels = c("Affordable Units", "Unaffordable Units", "number_of_units")),
+    tooltip = paste0(
+      "Lead Proponent Type: ", ultimate_recipient_type_en, "<br>",
+      `Unit Type`, ": ", `Unit Count`, "<br>",
+      "Project Status: ", project_status_en, "<br>",
+      "Total Units: ", scales::comma(`Unit Count`)))
+    
+
+labels <- proponents |>
+  filter(`Unit Type` == "number_of_units")
+
+
+
+
+prop_p <- proponents |>
+  filter(`Unit Type` != "number_of_units") |>
+  ggplot(aes(x = ultimate_recipient_type_en, y = `Unit Count`, fill = `Unit Type`)) +
+  geom_col_interactive(aes(tooltip = tooltip), position = position_stack(reverse = TRUE)) +
+  geom_text_interactive(
+    aes(x = ultimate_recipient_type_en, y = `Unit Count`, label = "",
+    tooltip = tooltip),
+    #size = lab_size_widget,
+    inherit.aes = FALSE) |>
+  custom_theme(add_size = nhs_plot_size_reduction, base_theme = theme_bw()) +
+  geom_text(
+    data = labels,
+    aes(x = ultimate_recipient_type_en, y = `Unit Count`, label = scales::comma(`Unit Count`)),
+vjust = -0.5,
+    size = lab_size_widget,
+    inherit.aes = FALSE
+  ) +
+  #scale_fill_manual(values = c("Affordable Units" = highlight_colour, "Unaffordable Units" = alternate_colour)) +  
+  scale_fill_brewer(palette = "Set2", direction = 1) +
+  labs(
+    title = "B. NHS-Funded Construction by Organization Type",
+    y = "Number of Units",  # This becomes the y-axis due to `coord_flip()`
+    x = element_blank(),  # Prevents a duplicated title
+    fill = element_blank()
+  ) +
+  #coord_flip() +
+  scale_y_continuous(labels = scales::comma, expand = expansion(mult = c(0.05, 0.5))) +
+  theme(
+    legend.position = "top",
+    #plot.title = element_text(size = 14, face = "bold"),
+legend.text = element_text(size = 8),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 7),
+    axis.text.y = element_blank()
+    #legend.position = "top"
+  ) +
+  facet_wrap(~project_status_en) 
+
+
+prop_p <- girafe(
+  ggobj = prop_p,
+  options = list(opts_zoom(min = 0.21, max = 10))
+  #width_svg = 7,    # Set the width of the output in inches
+  #height_svg = 3    # Set the height of the output in inches
+)
+
+
+combined <- tagList(
+  tags$div(
+    style = "display: flex; justify-content: space-between; align-items: center; margin-bottom: -5px;",
+    tags$div(style = "flex: 1; margin-right: 10px;", prop_p)
+  ),
+  tags$p(
+    style = "text-align: left; margin-top: -5px; font-style: italic; color: #989898;",
+      "Note: this plot is interactive. Hover over the bars to see more details about the funding amounts and programs."
+    )
+  )
+
+
+# Save or display
+browsable(combined)
+```
+
+
+
+# Service Manager Unit Breakdown
+
+* These figures display the total amount of units that Service Managers reported to MMAH in the SMAIR. 
+* The increased unit count in 2023 is not due to new activity, but rather expansion on reporting. The Ministry of Health (MOH) and Ministry of Children, Community and Social Services (MCS) appears for the first time in SMAIR 2023. As these ministries’ funding and units were not tracked in prior years of SMAIR, they will be excluded from following change-over-time analyses to ensure consistency.
+* Hamilton did not report for 2023, so I used their 2022 numbers for 2023.
+* New builds funded under programs like COCHI and OPHI would be included in these counts, but I cannot confirm which program they would fall under. 
+* I explored "service agreement" data, but I suspect this data was reported incorrectly or inconsistently, and appeared too unreliable to base any analysis off.
+
+
+```{r, fig.width=12.5, fig.height=6}
+# Add 2022 data for Hamilton to 2023
+ham_units_2023 <- units_20_22 |>
+  filter(SMSymbol == "HAM" & Year == 2022) |>
+  mutate(Year = 2023)
+
+# Combine all datasets and recode Program column
+units <- bind_rows(units_23, units_20_22, ham_units_2023) |>
+  mutate(
+    Program = recode(
+      Program,
+      "01Public Housing" = "01Public Housing",
+      "02RS" = "02Rent Supplement",
+      "05Section 95 PNP" = "05Section 95 Private Non-Profit",
+      "06Provincial Reformed" = "06Provincial Reformed",
+      "06Section 95 MNP" = "06Section 95 Municipal Non-Profit",
+      "07Post 85 UN" = "07Post 85 Urban Native",
+      "08Pre 86 UN" = "08Pre 86 Urban Native",
+      "11Service_Agreements" = "11Service_Agreements"
+    )
+  )
+
+unit_summary <- units |>
+    #filter(!SMSymbol %in% c("MCS", "MOH", "DEB", "HAM")) |>
+  select(`Total Units`, Year, Program) |>
+  group_by(Year, Program) |>
+  summarize(`Total Units` = sum(`Total Units`, na.rm = TRUE), .groups = "drop") |>
+  mutate(tooltip = paste0("Program: ", Program, "<br>",
+                          "Year: ", Year, "<br>",
+                          "Units: ", scales::comma(`Total Units`))) |>
+  ungroup()
+
+# Find the maximum y-axis value across both datasets
+max_y <- unit_summary %>% group_by(Year) %>% summarize(`Total Units` = sum(`Total Units`)) %>% pull(`Total Units`) %>% max()
+max_y <- max_y + 5000
+
+# Update first plot (sm_units)
+sm_units <- ggplot(unit_summary, aes(x = factor(Year), y = `Total Units`, fill = Program)) +
+  geom_col_interactive(
+     position = position_stack(reverse = TRUE),
+
+    aes(tooltip = tooltip)
+  ) +
+  # Interactive labels
+  geom_text_interactive(
+    data = unit_summary,
+    aes(
+      x = factor(Year), 
+      y = `Total Units`,
+      label = "",
+      tooltip = tooltip
+    ),
+    vjust = -0.5,
+    size = lab_size,
+    inherit.aes = FALSE
+  ) +
+  geom_text(
+    data = unit_summary %>%
+      group_by(Year) %>%
+      summarize(`Total Units` = sum(`Total Units`)),
+    aes(x = factor(Year), y = `Total Units`, label = scales::comma(`Total Units`)),
+    vjust = -0.5, size = lab_size_grid, inherit.aes = FALSE
+  ) +
+  
+    scale_y_continuous(expand = expansion(mult = c(0.05, 0.15))) +
+  scale_fill_manual(values = c(
+    "01Public Housing" = "#4CAF50",
+    "02Rent Supplement" = "#FF9800",
+    "05Section 95 Private Non-Profit" = "#2196F3",
+    "06Provincial Reformed" = "#9C27B0",
+    "06Section 95 Municipal Non-Profit" = "#BDBDBD",
+    "07Post 85 Urban Native" = "#FFC107",
+    "08Pre 86 Urban Native" = "#8BC34A",
+    "11Service_Agreements" = "#FF5722"
+  )) +
+    guides(fill = guide_legend(reverse = TRUE)) +  # optional, for legend order
+
+  labs(
+    title = "A. SM Units by Program",
+    x = element_blank(),
+    y = element_blank(),
+    fill = "Program"
+  ) +
+  custom_theme() +
+  theme(axis.text.y = element_blank())
+  # theme_minimal() +
+  # theme(
+  #     text = element_text(size = 16),  # Increase all text elements uniformly
+  # 
+  #   axis.text.x = element_text(angle = 0, hjust = 0.5),
+  #   axis.text.y = element_blank(),
+  #   plot.title = element_text(hjust = 0.5, size = 20, face),
+  #   strip.text = element_text(size = 12),
+  #   axis.title.y = element_blank()
+  # 
+  # ) 
+  #coord_cartesian(ylim = c(0, max_y))  # Set consistent y-axis limits
+
+unit_types <- units |>
+  select(-c("Program", "SMSymbol", `Total number of non-targeted households (at year end)`, `Service Agreements (Part VII.1)`)) |>
+  group_by(Year) |>
+  summarize(across(everything(), sum, na.rm = TRUE)) 
+
+# Calculate the "Unknown" category
+unit_types <- unit_types %>%
+  mutate(Unknown = `Total Units` - (
+    `RGI Household Below HILs` +
+    `RGI Household Above HILs` +
+    `Household in Market/LowEndMarket` +
+    `Units Vacant`
+  ))
+
+
+# Reshape data for ggplot
+unit_long <- unit_types %>%
+  select(-`Total Units`) %>%
+  pivot_longer(
+    cols = c(`RGI Household Below HILs`, `RGI Household Above HILs`,
+             `Household in Market/LowEndMarket`, `Units Vacant`, Unknown),
+    names_to = "Category",
+    values_to = "Count"
+  )
+
+
+
+unit_long <- unit_types %>%
+  select(-`Total Units`) %>%
+  pivot_longer(
+    cols = c(`RGI Household Below HILs`, `RGI Household Above HILs`,
+             `Household in Market/LowEndMarket`, `Units Vacant`, Unknown),
+    names_to = "Category",
+    values_to = "Count"
+  ) %>%
+  complete(Year, Category, fill = list(NA)) %>%
+  mutate(
+    tooltip = paste0("Unit Type: ", Category, "<br>",
+                     "Year: ", Year, "<br>",
+                     "Units: ", scales::comma(Count)),
+    Category = factor(
+      Category,
+      levels = c(
+        "RGI Household Below HILs",
+        "RGI Household Above HILs",
+        "Household in Market/LowEndMarket",
+        "Units Vacant",
+        "Unknown"
+      )
+    ))
+  
+
+# Create a 'Category_stack' column used only for stacking
+unit_long <- unit_long %>%
+  mutate(
+    Category = factor(
+      Category,
+      levels = c(
+        "RGI Household Below HILs",
+        "RGI Household Above HILs",
+        "Household in Market/LowEndMarket",
+        "Unknown",
+        "Units Vacant"
+      )
+    ),
+    Category_stack = factor(
+      Category,
+      levels = levels(Category) 
+    )
+  )
+
+
+
+# Create the faceted plot
+p_unit_type <- ggplot(unit_long, aes(x = factor(Year), y = Count, fill = Category)) +
+  geom_col_interactive(
+    aes(tooltip = tooltip, fill = Category, data_id = Category_stack),
+    position = position_stack(reverse = TRUE)
+  ) +
+  scale_fill_manual(
+    values = c(
+      "RGI Household Below HILs" = "#66C2A5",
+      "RGI Household Above HILs" = "#FC8D62",
+      "Household in Market/LowEndMarket" = "#8DA0CB",
+      "Unknown" = "grey",
+      "Units Vacant" = "#E78AC3"
+    ),
+    guide = guide_legend(reverse = TRUE)
+  ) +
+    #Interactive labels
+  geom_text_interactive(
+    data = unit_long,
+    aes(
+      x = factor(Year),
+      y = Count,
+      label = "",
+      tooltip = tooltip
+    ),
+    vjust = -0.5,
+    size = lab_size,
+    inherit.aes = FALSE
+  ) +
+  
+  geom_text(
+    data = unit_types,
+    aes(
+      x = factor(Year),
+      y = `Total Units`,
+      label = scales::comma(`Total Units`)
+    ),
+    vjust = -0.5, size = lab_size_grid, inherit.aes = FALSE
+  ) +
+
+   scale_y_continuous(expand = expansion(mult = c(0.05, 0.15))) +
+  labs(
+    title = "B. Unit Composition by Unit Type",
+    x = element_blank(),
+    y = "Number of Units",
+    fill = "Unit Composition"
+  ) +
+  custom_theme()+
+  theme(axis.text.y = element_blank())
+  # theme_minimal() +
+  # theme(
+  #   axis.text.x = element_text(angle = 0, hjust = 0.5, size = 11),
+  #   axis.text.y = element_blank(),
+  #   plot.title = element_text(hjust = 0.5, size = 16),
+  #   strip.text = element_text(size = 12),
+  #   axis.title.y = element_blank()
+  # 
+  # ) 
+
+
+sm_units_gg <- girafe(ggobj = sm_units, options = list(opts_zoom(min = 0.21, max = 10))) # Adjust min and max zoom levels
+p_unit_type_gg <- girafe(ggobj = p_unit_type, options = list(opts_zoom(min = 0.21, max = 10))) # Adjust min and max zoom levels
+
+
+combined <- tagList(
+  tags$div(
+    style = "display: flex; justify-content: space-between; align-items: center; margin-bottom: -5px;", # Reduced bottom margin
+    tags$div(style = "flex: 1; margin-right: 10px;", sm_units_gg),
+    tags$div(style = "flex: 1;", p_unit_type_gg)
+  ),
+  tags$p(
+    style = "text-align: left; margin-top: -5px; font-style: italic; color: #989898;", # Negative margin to reduce spacing
+    "Note: this plot is interactive. Look at the icons on the top right of each plot to enable different interactive actions, such as scrolling in or zooming. Hover over the bars to see more details about the funding amounts and programs."
+  )
+)
+
+# Save or display
+browsable(combined)
+```
+
+## How much is Service Manager stock changing?
+
+### Total units by unit type and program
+
+* To better reflect trends in community housing stock over time, __the Ministry of Health (MOH) and Ministry of Children, Community and Social Services (MCS) were removed since they only reported in 2023__. 
+* Following figures will display changes better, but overall we see a very small loss of units under Ontario's community housing system.  
+
+
+```{r, fig.width=12.5, fig.height=6}
+select_regions <- units |>
+  filter(!SMSymbol %in% c("MCS", "MOH", "DEB")) 
+
+unit_types <- select_regions |>
+  select(-c("Program", "SMSymbol", `Total number of non-targeted households (at year end)`, `Service Agreements (Part VII.1)`)) |>
+  group_by(Year) |>
+  summarize(across(everything(), sum, na.rm = TRUE)) 
+
+
+# Calculate the "Unknown" category
+unit_types <- unit_types %>%
+  mutate(Unknown = `Total Units` - (
+    `RGI Household Below HILs` +
+    `RGI Household Above HILs` +
+    `Household in Market/LowEndMarket` +
+    `Units Vacant`
+  ))
+
+
+# Reshape data for ggplot
+unit_long <- unit_types %>%
+  select(-`Total Units`) %>%
+  pivot_longer(
+    cols = c(`RGI Household Below HILs`, `RGI Household Above HILs`,
+             `Household in Market/LowEndMarket`, `Units Vacant`, Unknown),
+    names_to = "Category",
+    values_to = "Count"
+  )
+
+
+
+unit_long <- unit_types %>%
+  select(-`Total Units`) %>%
+  pivot_longer(
+    cols = c(`RGI Household Below HILs`, `RGI Household Above HILs`,
+             `Household in Market/LowEndMarket`, `Units Vacant`, Unknown),
+    names_to = "Category",
+    values_to = "Count"
+  ) %>%
+  complete(Year, Category, fill = list(NA)) %>%
+  mutate(
+    tooltip = paste0("Unit Type: ", Category, "<br>",
+                     "Year: ", Year, "<br>",
+                     "Units: ", scales::comma(Count)),
+    Category = factor(
+      Category,
+      levels = c(
+        "RGI Household Below HILs",
+        "RGI Household Above HILs",
+        "Household in Market/LowEndMarket",
+        "Units Vacant",
+        "Unknown"
+      )
+    ))
+  
+
+# Create a 'Category_stack' column used only for stacking
+unit_long <- unit_long %>%
+  mutate(
+    Category = factor(
+      Category,
+      levels = c(
+        "RGI Household Below HILs",
+        "RGI Household Above HILs",
+        "Household in Market/LowEndMarket",
+        "Unknown",
+        "Units Vacant"
+      )
+    ),
+    Category_stack = factor(
+      Category,
+      levels = levels(Category) 
+    )
+  )
+
+
+
+# Create the faceted plot
+p_unit_type <- ggplot(unit_long, aes(x = factor(Year), y = Count, fill = Category)) +
+  geom_col_interactive(
+    aes(tooltip = tooltip, fill = Category, data_id = Category_stack),
+    position = position_stack(reverse = TRUE)
+  ) +
+  scale_fill_manual(
+    values = c(
+      "RGI Household Below HILs" = "#66C2A5",
+      "RGI Household Above HILs" = "#FC8D62",
+      "Household in Market/LowEndMarket" = "#8DA0CB",
+      "Unknown" = "grey",
+      "Units Vacant" = "#E78AC3"
+    ),
+    guide = guide_legend(reverse = TRUE)
+  ) +
+  #Interactive labels
+  geom_text_interactive(
+    data = unit_long,
+    aes(
+      x = factor(Year),
+      y = Count,
+      label = "",
+      tooltip = tooltip
+    ),
+    vjust = -0.5,
+    size = lab_size,
+    inherit.aes = FALSE
+  ) +
+  geom_text(
+    data = unit_types,
+    aes(
+      x = factor(Year),
+      y = `Total Units`,
+      label = scales::comma(`Total Units`)
+    ),
+    vjust = -0.5, size = lab_size_grid, inherit.aes = FALSE
+  ) +
+
+   scale_y_continuous(expand = expansion(mult = c(0.05, 0.15))) +
+  labs(
+    title = "B. Unit Composition by Unit Type",
+    x = element_blank(),
+    y = "Number of Units",
+    fill = "Unit Composition"
+  ) +
+  custom_theme()+
+  theme(axis.text.y = element_blank())
+  # theme_minimal() +
+  # theme(
+  #   axis.text.x = element_text(angle = 0, hjust = 0.5, size = 11),
+  #   axis.text.y = element_blank(),
+  #   plot.title = element_text(hjust = 0.5, size = 16),
+  #   strip.text = element_text(size = 12),
+  #   axis.title.y = element_blank()
+  # 
+  # ) 
+
+
+
+
+
+
+
+
+
+# Add 2022 data for Hamilton to 2023
+ham_units_2023 <- units_20_22 |>
+  filter(SMSymbol == "HAM" & Year == 2022) |>
+  mutate(Year = 2023)
+
+# Combine all datasets and recode Program column
+units <- select_regions |>
+  mutate(
+    Program = recode(
+      Program,
+      "01Public Housing" = "01Public Housing",
+      "02RS" = "02Rent Supplement",
+      "05Section 95 PNP" = "05Section 95 Private Non-Profit",
+      "06Provincial Reformed" = "06Provincial Reformed",
+      "06Section 95 MNP" = "06Section 95 Municipal Non-Profit",
+      "07Post 85 UN" = "07Post 85 Urban Native",
+      "08Pre 86 UN" = "08Pre 86 Urban Native",
+      "11Service_Agreements" = "11Service_Agreements"
+    )
+  )
+
+unit_summary <- units |>
+    #filter(!SMSymbol %in% c("MCS", "MOH", "DEB", "HAM")) |>
+  select(`Total Units`, Year, Program) |>
+  group_by(Year, Program) |>
+  summarize(`Total Units` = sum(`Total Units`, na.rm = TRUE), .groups = "drop") |>
+  mutate(tooltip = paste0("Program: ", Program, "<br>",
+                          "Year: ", Year, "<br>",
+                          "Units: ", scales::comma(`Total Units`))) |>
+  ungroup()
+
+# Find the maximum y-axis value across both datasets
+max_y <- unit_summary %>% group_by(Year) %>% summarize(`Total Units` = sum(`Total Units`)) %>% pull(`Total Units`) %>% max()
+max_y <- max_y + 5000
+
+# Update first plot (sm_units)
+sm_units <- ggplot(unit_summary, aes(x = factor(Year), y = `Total Units`, fill = Program)) +
+  geom_col_interactive(
+     position = position_stack(reverse = TRUE),
+
+    aes(tooltip = tooltip)
+  ) +
+  # Interactive labels
+  geom_text_interactive(
+    data = unit_summary,
+    aes(
+      x = factor(Year), 
+      y = `Total Units`,
+      label = "",
+      tooltip = tooltip
+    ),
+    vjust = -0.5,
+    size = lab_size,
+    inherit.aes = FALSE
+  ) +
+  geom_text(
+    data = unit_summary %>%
+      group_by(Year) %>%
+      summarize(`Total Units` = sum(`Total Units`)),
+    aes(x = factor(Year), y = `Total Units`, label = scales::comma(`Total Units`)),
+    vjust = -0.5, size = lab_size_grid, inherit.aes = FALSE
+  ) +
+  
+   scale_y_continuous(expand = expansion(mult = c(0.05, 0.15))) +
+  scale_fill_manual(values = c(
+    "01Public Housing" = "#4CAF50",
+    "02Rent Supplement" = "#FF9800",
+    "05Section 95 Private Non-Profit" = "#2196F3",
+    "06Provincial Reformed" = "#9C27B0",
+    "06Section 95 Municipal Non-Profit" = "#BDBDBD",
+    "07Post 85 Urban Native" = "#FFC107",
+    "08Pre 86 Urban Native" = "#8BC34A",
+    "11Service_Agreements" = "#FF5722"
+  )) +
+    guides(fill = guide_legend(reverse = TRUE)) +  # optional, for legend order
+
+  labs(
+    title = "A. SM Units by Program",
+    x = element_blank(),
+    y = element_blank(),
+    fill = "Program"
+  ) +
+  custom_theme()+
+  theme(axis.text.y = element_blank())
+  # theme_minimal() +
+  # theme(
+  #   axis.text.x = element_text(angle = 0, hjust = 0.5, size = 11),
+  #   axis.text.y = element_blank(),
+  #   plot.title = element_text(hjust = 0.5, size = 16),
+  #   strip.text = element_text(size = 12),
+  #   axis.title.y = element_blank()
+  # 
+  # ) 
+  #coord_cartesian(ylim = c(0, max_y))  # Set consistent y-axis limits
+
+
+
+
+sm_units_gg <- girafe(ggobj = sm_units, options = list(opts_zoom(min = 0.21, max = 10))) # Adjust min and max zoom levels
+p_unit_type_gg <- girafe(ggobj = p_unit_type, options = list(opts_zoom(min = 0.21, max = 10))) # Adjust min and max zoom levels
+
+
+combined <- tagList(
+  tags$div(
+    style = "display: flex; justify-content: space-between; align-items: center; margin-bottom: -5px;", # Reduced bottom margin
+    tags$div(style = "flex: 1; margin-right: 10px;", sm_units_gg),
+    tags$div(style = "flex: 1;", p_unit_type_gg)
+  ),
+  tags$p(
+    style = "text-align: left; margin-top: -5px; font-style: italic; color: #989898;", # Negative margin to reduce spacing
+    "Note: this plot is interactive. Look at the icons on the top right of each plot to enable different interactive actions, such as scrolling in or zooming. Hover over the bars to see more details about the funding amounts and programs."
+  )
+)
+
+# Save or display
+browsable(combined)
+```
+
+
+
+Here is a better look at change in unit types since 2020. There is a gradual loss of RGI units, and an increase _Low-end of Market (LEM)_ and _RGI households with above household income limits (HILs)_. Unless there were recent changes, within 2020-2022 data, it was indicated that above HIL and low-end of market do not count towards service level standards. The "unknown" category is an unknown mix of LEM and above HIL units.
+
+```{r unit-type changes}
+add_size2 <- -14
+
+vertical_plot_theme<- theme_bw(base_size = 12) +
+  theme(
+    #axis.text.x = element_text(angle = 0, hjust = 0.5, size = 12),
+    #plot.title = element_text(hjust = 0.5, size = 16),
+   # axis.text.y = element_text(size = 10),
+     plot.margin = margin(8, 8, 0, 8),
+      plot.title = element_text(size = 30 + add_size2, lineheight = 0.9, face = "bold", margin = margin(0, 0, 6, 0)),
+      plot.title.position = "plot",
+      #plot.caption = element_text(colour = darker_gray_colour, size = 12, margin = margin(6, 4, 2, 20), hjust = 0),
+      #plot.caption.position = "plot",
+      #axis.title.x = element_text(face = "plain", size = 24, margin = margin(6, 0, 0, 0), lineheight = 0.9, hjust = 0.5, angle = 0),
+      axis.title.x = element_blank(),
+      axis.title.y = element_text(face = "plain", size = 26+ add_size2, margin = margin(0, 6, 0, 0), lineheight = 0.9, hjust = 0.5),
+      axis.text.x = element_text(face = "plain", size = 22+ add_size2, lineheight = 0.9),
+      axis.text.y = element_text(face = "plain", size = 18+ add_size2),
+      axis.ticks.x = element_line(colour = gray_colour, linewidth = 0.25),
+     axis.ticks.y = element_blank(),
+      axis.ticks.length = unit(0, "mm"),
+      axis.line.x = element_line(linewidth = 0.25, colour = gray_colour), 
+      text = element_text(colour = font_colour),
+    # axis.title.x = element_blank(),
+    legend.text = element_text(size=22+ add_size2, lineheight = 0.9),
+    legend.title = element_text(size=22+ add_size2, face = "bold"),
+    plot.caption = ggtext::element_markdown(size = 14+ add_size2, hjust = 0, color = "grey50", margin = margin(t = 10, l = 5)),
+         strip.text = element_text(size = 24+ add_size2))  + 
+  #scale_y_continuous(labels = scales::comma) +
+  labs(
+    x = element_blank())
+
+# group unknown and above HIL and LEM together
+select_regions <- units |>
+  filter(!SMSymbol %in% c("MCS", "MOH", "DEB")) 
+
+unit_types <- select_regions |>
+  select(-c("Program", "SMSymbol", `Total number of non-targeted households (at year end)`, `Service Agreements (Part VII.1)`)) |>
+  group_by(Year) |>
+  summarize(across(everything(), sum, na.rm = TRUE)) 
+
+
+# Calculate the "Unknown" category
+unit_types <- unit_types %>%
+  mutate(Unknown = `Total Units` - (
+    `RGI Household Below HILs` +
+    `RGI Household Above HILs` +
+    `Household in Market/LowEndMarket` +
+    `Units Vacant`
+  ))
+
+
+# Reshape data for ggplot
+unit_long <- unit_types %>%
+  select(-`Total Units`) %>%
+  pivot_longer(
+    cols = c(`RGI Household Below HILs`, `RGI Household Above HILs`,
+             `Household in Market/LowEndMarket`, `Units Vacant`, Unknown),
+    names_to = "Category",
+    values_to = "Count"
+  ) |>
+  mutate(groupings = ifelse(grepl("Unknown|Above HIL|LowEndMarket", Category), "Unknown/Above HIL/LowEndMarket", Category)) |>
+  group_by(Category) |>
+  arrange(Year) 
+
+rgi <- unit_long |>
+  filter(grepl("Below", Category)) |>
+  group_by(Year) |>
+  summarize(Count = sum(Count, na.rm = TRUE), .groups = "drop") |>
+  arrange(Year) |>
+  mutate(
+    units_2020 = first(Count),
+    `Unit Change from 2020` = Count - units_2020,
+    pct_change =  (`Unit Change from 2020`) / units_2020 * 100,
+    label_text = paste0(
+      ifelse(`Unit Change from 2020` >= 0, "+", ""), 
+      scales::comma(`Unit Change from 2020`),
+      " (", scales::percent(pct_change / 100, accuracy = 0.1), ")"
+    )) |>
+  filter(Year != 2020)
+
+
+
+rgi_plot <- ggplot(rgi, aes(x = factor(Year), y = `Unit Change from 2020`)) +
+  geom_col_interactive(fill = "#66C2A5") +
+  geom_text(
+    aes(
+      y = 200,
+      label = label_text
+    ),
+    size = lab_size_grid -4
+  ) +
+  labs(
+    title = "A. Change in RGI Units from 2020",
+    x = element_blank(),
+    y = "Unit Change\nSince 2020"
+  ) +
+  geom_hline(yintercept = 0, color = "black", size = 1) +
+  scale_y_continuous(expand = expansion(mult = c(0.05,0.2))) +
+  vertical_plot_theme +
+  theme(axis.text.y = element_blank())
+
+
+others_plot <- unit_long |> filter(Category != "RGI Household Below HILs") |>
+  group_by(Year, Category, groupings) |>
+  summarize(Count = sum(Count, na.rm = TRUE), .groups = "drop") |>
+  group_by(Category, groupings) |>
+  arrange(Year) |>
+  mutate(
+    units_2020 = first(Count),
+    `Unit Change from 2020` = ifelse(units_2020 != 0 & Count != 0 & Year != 2020, Count - units_2020, NA),
+    `Unit Change from Previous Year` = ifelse(lag(Count) != 0 & Count != 0 & Year != 2020, Count - lag(Count), NA),
+    pct_change_2020 =  (`Unit Change from 2020`) / units_2020 * 100,
+    pct_change_previous_year =  (`Unit Change from Previous Year`) / lag(Count) * 100,
+    text_change_2020 = paste0(
+      ifelse(`Unit Change from 2020` >= 0, "+", ""), 
+      scales::comma(`Unit Change from 2020`),
+      " (", scales::percent(pct_change_2020 / 100, accuracy = 0.1), ")"), 
+    text_previous_year = paste0(
+      ifelse(`Unit Change from Previous Year` >= 0, "+", ""), 
+      scales::comma(`Unit Change from Previous Year`),
+      " (", scales::percent(pct_change_previous_year / 100, accuracy = 0.1), ")")) |>
+  mutate(across(c(text_previous_year, text_change_2020), ~ ifelse(grepl("NA",.), "NA", .)),
+         tooltip = paste0(
+           "Year: ", Year, "<br>",
+           "Category: ", Category, "<br>",
+           "Units: ", scales::comma(Count), "<br>",
+           "Change from Previous Year: ", text_previous_year, "<br>",
+           "Change from 2020: ", text_change_2020
+         ))
+
+
+
+others_plot <- others_plot %>%
+  mutate(
+    groupings = factor(groupings, levels = c(
+      "Unknown/Above HIL/LowEndMarket",
+      "Units Vacant"
+    ))
+  )
+
+others_plot <- others_plot %>%
+  mutate(
+    Category = factor(Category, levels = c(
+      "Household in Market/LowEndMarket",
+      "RGI Household Above HILs",
+      "Units Vacant",
+      "Unknown"
+    ))
+  )
+
+
+labels_df <- others_plot %>%
+  group_by(Year, groupings) %>%
+  summarize(Total = sum(Count), .groups = "drop")
+
+
+op <- ggplot(others_plot, aes(x = factor(Year), y = Count, fill = Category)) +
+  geom_col_interactive(aes(tooltip = tooltip), position = "stack") +
+  
+  geom_text(
+    data = labels_df,
+    aes(x = factor(Year), y = Total, label = scales::comma(Total)),
+    vjust = -0.5,
+    size = lab_size_grid-4,
+    inherit.aes = FALSE
+  ) + 
+ geom_text_interactive(
+    data = others_plot,
+    aes(
+      x = factor(Year), 
+      y = Count,
+      label = "",
+      tooltip = tooltip
+    ),
+    vjust = -0.5,
+    size = lab_size,
+    inherit.aes = FALSE
+  ) +
+  
+  scale_fill_manual(values = c(
+    "RGI Household Above HILs" = "#FC8D62",
+    "Household in Market/LowEndMarket" = "#8DA0CB",
+    "Units Vacant" = "#E78AC3",
+    "Unknown" = "grey"
+  )) +
+  
+  labs(
+    title = "B. Total Unit Count by Unit Type",
+    x = NULL,
+    y = "Total Unit Count",
+    fill = "Unit Type"
+  ) +
+  scale_y_continuous(expand = expansion(mult = c(0.05, 0.2))) +
+  vertical_plot_theme +
+  theme(
+    axis.text.y = element_blank(),
+    axis.text.x = element_text(angle = 0),
+    legend.position = "right"
+  ) +
+  facet_wrap(~ groupings, ncol = 2)
+
+rgi_plot <- girafe(
+  ggobj = rgi_plot,
+  width_svg = 8,
+  height_svg = 2,
+  options = list(opts_zoom(min = 0.21, max = 10))
+)
+
+op <- girafe(
+  ggobj = op,
+  width_svg = 8,
+  height_svg = 2,
+  options = list(opts_zoom(min = 0.21, max = 10))
+)
+
+
+combined <- tagList(
+  tags$div(
+    style = "display: flex; flex-direction: column; gap: 0px; align-items: center;",
+    
+    # Top plot centered
+    tags$div(style = "width: 70%; margin: 0 auto;", rgi_plot),
+    
+    # Bottom plot centered
+    tags$div(style = "width: 70%; margin: 0 auto;", op)
+  ),
+  
+  tags$p(
+    style = "text-align: left; margin-top: -5px; font-style: italic; color: #989898;",
+    "Note: this plot is interactive. Look at the icons on the top right of each plot to enable different interactive actions, such as scrolling in or zooming. Hover over the bars to see more details about the funding amounts and programs."
+  )
+)
+
+
+htmltools::div(
+  style = "max-height: none;",  # Or increase if needed
+  browsable(combined)
+)
+
+```
+
+### Unit count change since 2020
+
+* Most programs are seeing decreases in unit count, with the exception of Rent Supplement, Service Agreements and Public Housing.
+* Rent supplements are growing rapidly, but growth stems almost entirely from Toronto. There is an actual decline in Rent Supplements across Ontario when removing Toronto, as shown in the following figure.
+
+__Factors behind these changes:__
+
+* Expiry of operating agreements.
+* New federally funded projects (e.g. Affordable Housing Fund, Rapid Housing Initiative) being added to the system (note that these are small numbers, relatively speaking). 
+* Units being reclassified. For instance, some projects have been transferred to local housing corporations, which would transition unit counts into the Public Housing category.
+* Projects temporarily out of service, or reoccupying sites.
+* Data tracking adjustments / errors.
+
+
+__Questions:__ 
+
+* What is the proportion of rent supplements going to private non-profits versus for-profits? 
+* How much of the change is attributed to units leaving the system at end-of-agreement, and what happens to most of these units (e.g., do they go to market rates? Get sold? Loss to disrepair?)
+
+```{r xx_chunk, fig.width=12}
+
+# Assuming the `unit_summary` tibble is created as follows:
+unit_summary <- units |>
+  filter(!SMSymbol %in% c("MCS", "MOH", "DEB")) |>
+  #mutate(`Total Units` = ifelse(`Total Units` == "N/A", NA, as.double(`Total Units`))
+  select(`Total Units`, Year, Program) |>
+  group_by(Year, Program) |>
+  summarize(`Total Units` = sum(`Total Units`, na.rm = TRUE), .groups = "drop") |>
+  group_by(Program) |>
+  arrange(Year) |>
+  mutate(units_2020 = ifelse(any(Year == 2020), first(`Total Units`), NA),
+         `Unit Change from 2020` = ifelse(grepl("Agreement", Program), `Total Units` - 0, `Total Units` - units_2020),
+         pct_change =  (`Unit Change from 2020`) / units_2020 * 100,
+         label_text = paste0(
+                      ifelse(`Unit Change from 2020` >= 0, "+", ""), 
+                              scales::comma(`Unit Change from 2020`),
+                      " (", scales::percent(pct_change / 100, accuracy = 0.1), ")"
+    )) |>
+  ungroup() |>
+  mutate(
+    label_text = ifelse(grepl("Agreement", Program, ignore.case =T),
+                           str_replace(label_text, "\\s.*", ""), label_text))
+
+
+# Find the maximum absolute value for each Program
+program_max <- unit_summary %>%
+  group_by(Program) %>%
+  summarize(max_change = max(abs(`Unit Change from 2020`), na.rm = TRUE))
+
+
+unit_summary <- unit_summary %>%
+  left_join(program_max, by = "Program") %>%
+  mutate(
+    # Nudge: 5% of max, but minimum 100 units
+    label_nudge = pmax(0.05 * max_change, 100),
+    label_position = ifelse(`Unit Change from 2020` >= 0,
+                             `Unit Change from 2020` + label_nudge,
+                             `Unit Change from 2020` - label_nudge),
+    vjust = ifelse(`Unit Change from 2020` >= 0, -0.5, 1.5),
+  )
+
+
+unit_summary <- unit_summary %>%
+  #mutate( `Unit Change from 2020` = ifelse(grepl("Agreement", Program), `Total Units` - 0, `Total Units` - first(`Total Units`))) |>
+  filter(Year != 2020)
+
+
+
+ggplot(unit_summary, aes(x = factor(Year), y = `Unit Change from 2020`, fill = Program)) +
+  geom_bar(stat = "identity") +
+  geom_text(
+    aes(
+      y = `Unit Change from 2020`,
+      label = label_text,
+       vjust = vjust
+    ),
+    size = 8
+  ) +
+  scale_fill_manual(values = c(
+    "01Public Housing" = "#4CAF50",
+    "02Rent Supplement" = "#FF9800",
+    "05Section 95 Private Non-Profit" = "#2196F3",
+    "06Provincial Reformed" = "#9C27B0",
+    "06Section 95 Municipal Non-Profit" = "#BDBDBD",
+    "07Post 85 Urban Native" = "#FFC107",
+    "08Pre 86 Urban Native" = "#8BC34A",
+    "11Service_Agreements" = "#FF5722"
+  )) +
+  labs(
+    title = "Change in Units from 2020",
+    x = element_blank(),
+    y = "Unit Change since 2020",
+    fill = "Program"
+  ) +
+  theme_bw() +
+  geom_hline(yintercept = 0, color = "black", size = 1) +
+  scale_y_continuous(expand = expansion(mult = c(0.3,0.3))) +
+  theme(
+    element_text(size = 24),  # Increase all text elements uniformly
+    axis.text.x = element_text(angle = 0, hjust = 0.5, size = 22),
+    plot.margin = margin(8, 8, 0, 8),
+      plot.title = element_text(size = 30 + add_size, lineheight = 0.9, face = "bold", margin = margin(0, 0, 6, 0)),
+      plot.title.position = "plot",
+    strip.text = element_text(size = 24),
+    axis.text.y = element_blank(),
+    axis.title.y = element_text(size = 28),
+    axis.ticks = element_blank(),
+    legend.position = "none"
+  ) +
+  facet_wrap(~Program, scales = "free_y")
+
+
+
+
+```
+
+
+
+
+```{r, fig.width=12}
+# Assuming the `unit_summary` tibble is created as follows:
+unit_summary <- units |>
+  filter(!SMSymbol %in% c("MCS", "MOH", "DEB", "TOR")) |>
+  #mutate(`Total Units` = ifelse(`Total Units` == "N/A", NA, as.double(`Total Units`))
+  select(`Total Units`, Year, Program) |>
+  group_by(Year, Program) |>
+  summarize(`Total Units` = sum(`Total Units`, na.rm = TRUE), .groups = "drop") |>
+  group_by(Program) |>
+  arrange(Year) |>
+  mutate(units_2020 = ifelse(any(Year == 2020), first(`Total Units`), NA),
+         `Unit Change from 2020` = ifelse(grepl("Agreement", Program), `Total Units` - 0, `Total Units` - units_2020),
+         pct_change =  (`Unit Change from 2020`) / units_2020 * 100,
+         label_text = paste0(
+                      ifelse(`Unit Change from 2020` >= 0, "+", ""), 
+                              scales::comma(`Unit Change from 2020`),
+                      " (", scales::percent(pct_change / 100, accuracy = 0.1), ")"
+    )) |>
+  ungroup() |>
+  mutate(
+    label_text = ifelse(grepl("Agreement", Program, ignore.case =T),
+                           str_replace(label_text, "\\s.*", ""), label_text))
+
+
+# Find the maximum absolute value for each Program
+program_max <- unit_summary %>%
+  group_by(Program) %>%
+  summarize(max_change = max(abs(`Unit Change from 2020`), na.rm = TRUE))
+
+
+unit_summary <- unit_summary %>%
+  left_join(program_max, by = "Program") %>%
+  mutate(
+    # Nudge: 5% of max, but minimum 100 units
+    label_nudge = pmax(0.05 * max_change, 100),
+    label_position = ifelse(`Unit Change from 2020` >= 0,
+                             `Unit Change from 2020` + label_nudge,
+                             `Unit Change from 2020` - label_nudge),
+    vjust = ifelse(`Unit Change from 2020` >= 0, -0.5, 1.5),
+  )
+
+
+unit_summary <- unit_summary %>%
+  #mutate( `Unit Change from 2020` = ifelse(grepl("Agreement", Program), `Total Units` - 0, `Total Units` - first(`Total Units`))) |>
+  filter(Year != 2020)
+
+
+
+ggplot(unit_summary, aes(x = factor(Year), y = `Unit Change from 2020`, fill = Program)) +
+  geom_bar(stat = "identity") +
+  geom_text(
+    aes(
+      y = `Unit Change from 2020`,
+      label = label_text,
+       vjust = vjust
+    ),
+    size = 8
+  ) +
+  scale_fill_manual(values = c(
+    "01Public Housing" = "#4CAF50",
+    "02Rent Supplement" = "#FF9800",
+    "05Section 95 Private Non-Profit" = "#2196F3",
+    "06Provincial Reformed" = "#9C27B0",
+    "06Section 95 Municipal Non-Profit" = "#BDBDBD",
+    "07Post 85 Urban Native" = "#FFC107",
+    "08Pre 86 Urban Native" = "#8BC34A",
+    "11Service_Agreements" = "#FF5722"
+  )) +
+  labs(
+    title = "Removing Toronto: Change in Units from 2020 for rest of Ontario",
+    x = element_blank(),
+    y = "Unit Change since 2020",
+    fill = "Program"
+  ) +
+  theme_bw() +
+  geom_hline(yintercept = 0, color = "black", size = 1) +
+  scale_y_continuous(expand = expansion(mult = c(0.3,0.3))) +
+  theme(
+    element_text(size = 24),  # Increase all text elements uniformly
+    axis.text.x = element_text(angle = 0, hjust = 0.5, size = 22),
+    plot.margin = margin(8, 8, 0, 8),
+      plot.title = element_text(size = 30 + add_size, lineheight = 0.9, face = "bold", margin = margin(0, 0, 6, 0)),
+      plot.title.position = "plot",
+    strip.text = element_text(size = 24),
+    axis.text.y = element_blank(),
+    axis.title.y = element_text(size = 28),
+    axis.ticks = element_blank(),
+    legend.position = "none"
+  ) +
+  facet_wrap(~Program, scales = "free_y")
+
+```
+
+
+### Unit change by program and unit type
+
+The following figures show the total unit count change and percent change since 2020, the first year of available data.
+
+* The Majority of new units are occurring in rent supplements. Rent supplements have seen an increase in low-end of market/RGI units with above household income limit households. 
+* RGI units are being lost in public housing, Section 95 and Provincially Reformed housing projects. 
+
+
+```{r, fig.width=12}
+program_summary <- units |> filter(!SMSymbol %in% c("MCS", "MOH","DEB", "HAM")) |>
+  select(-c("SMSymbol", `Total number of non-targeted households (at year end)`, `Service Agreements (Part VII.1)`)) |>
+  group_by(Year, Program) |>
+  summarize(across(everything(), sum, na.rm = TRUE))
+
+# Calculate the "Unknown" category
+program_summary <- program_summary %>%
+  mutate(Unknown = `Total Units` - (
+    `RGI Household Below HILs` +
+    `RGI Household Above HILs` +
+    `Household in Market/LowEndMarket` +
+    `Units Vacant`
+  ))
+
+
+# Reshape data for ggplot
+program_summary <- program_summary %>%
+  #filter(Year >= 2022) |>
+  select(-`Total Units`) %>%
+  pivot_longer(
+    cols = c(`RGI Household Below HILs`, `RGI Household Above HILs`,
+             `Household in Market/LowEndMarket`, `Units Vacant`, Unknown),
+    names_to = "Category",
+    values_to = "Count"
+  ) |>
+  mutate(Category = ifelse(Category %in% c("Unknown", "RGI Household Above HILs", "Household in Market/LowEndMarket" ), "LEM + Above HIL RGI", Category)) |> 
+  group_by(Program, Category, Year) |>
+  summarize(Count = sum(Count, na.rm = TRUE), .groups = "drop") |>
+  group_by(Program, Category) |>
+  arrange(Year) |>
+  mutate(units_2020 = ifelse(any(Year == 2020), first(Count), 0),
+         change_from_2020 = ifelse(grepl("Agreement", Program, ignore.case = T), Count - 0, Count - units_2020),
+         pct_change =  (change_from_2020) / units_2020 * 100,
+         units_2020 = ifelse(any(Year == 2020), first(Count), 0),
+    ) |>
+  ungroup() |>
+  filter(Year == 2023) |>
+  mutate(tooltip = paste0("Program: ", Program, "<br>",
+                     "Unit Type: ", Category, "<br>",
+                     "Unit Change from 2020: ", scales::comma(change_from_2020), "<br>",
+                     "Percent Change: ", scales::percent(pct_change / 100, accuracy = 0.1), "<br>",
+                     "Total Units (2023): ", scales::comma(Count)))
+
+
+
+# Calculate the total unit change by program
+total_change <- program_summary %>%
+  group_by(Program) %>%
+  arrange(Year) |>
+  mutate(label_placement = ifelse(change_from_2020 < 0, 0, change_from_2020), 
+         label_placement = sum(label_placement)) |>
+  summarize(count = sum(Count, na.rm = TRUE),
+            change_from_2020 = sum(change_from_2020, na.rm = TRUE),
+            units_2020 = sum(units_2020, na.rm = T),
+            label_placement = first(label_placement)) |>
+  ungroup() |>
+  mutate(   pct_change = change_from_2020 / units_2020 * 100,
+            label_text = paste0(
+                      ifelse(change_from_2020 >= 0, "+", ""), 
+                              scales::comma(change_from_2020),
+                      " (", scales::percent(pct_change / 100, accuracy = 0.1), ")"
+    ), label_text = ifelse(grepl("Agreement", Program), str_replace(label_text, "\\s.*", ""), label_text))
+
+
+# Reorder programs by total unit change
+plot_summary <- program_summary %>%
+  left_join(total_change, by = "Program") %>%
+  mutate(Program = forcats::fct_reorder(Program, change_from_2020.y)) |>
+  mutate(tooltip = paste0("Program: ", Program, "<br>",
+                          "Unit Type: ", Category, "<br>",
+                     "Unit Change from 2020: ", scales::comma(change_from_2020.x), "<br>",
+                     "Total Units (2023): ", scales::comma(count), "<br>"))
+
+# labels <-  plot_summary %>% group_by(Program) |> arrange(Year) |>
+#   mutate(label_placement = ifelse(change_from_2020 < 0, 0, change_from_2020), 
+#          label_placement = sum(label_placement),
+#          pct_change = change_from_2020 / first(change_from_2020) * 100,
+#          label = total_change,
+#                                                         pct_change = ) %>% slice(1) %>% ungroup() %>%
+
+
+plot_summary <- plot_summary %>%
+  mutate(Program = fct_reorder(Program, change_from_2020.y)) |>
+  # mutate(tooltip = paste0("Program: ", Program, "<br>",
+  #                         "Unit Type: ", Category, "<br>",
+  #                    "Unit Change from 2020: ", scales::comma(change_from_2020), "<br>",
+  #                    "Total Units (2023): ", scales::comma(Count), "<br>"),
+    mutate(     Program = factor(Program, levels = c("01Public Housing",
+      "02Rent Supplement",
+      "05Section 95 Private Non-Profit",
+      "06Provincial Reformed",
+      "06Section 95 Municipal Non-Profit",
+      "07Post 85 Urban Native",
+      "08Pre 86 Urban Native",
+      "11Service_Agreements")))
+
+add_size <- -10
+
+# Plot with reordered programs and labels
+p1 <- plot_summary |> ggplot(aes(x = Program, y = change_from_2020.x, fill = Category)) +
+  geom_col_interactive(
+     position = position_stack(reverse = TRUE),
+    aes(tooltip = tooltip)
+  ) +
+  # Interactive labels
+  geom_text_interactive(
+    data = plot_summary,
+    aes(
+      x = Program, 
+      y = change_from_2020.x,
+      label = "",
+      tooltip = tooltip
+    ),
+    vjust = -0.7,
+    size = lab_size,
+    inherit.aes = FALSE
+  ) +
+  labs(
+    title = "Change in Units by Program and Unit Type (2020 to 2023)",
+    x = element_blank(),
+    y = "Unit Change since 2020",
+    fill = "Unit Type"
+  ) +
+  theme_bw() +
+  scale_fill_manual(values = c(
+    "RGI Household Below HILs" = "#4CAF50",
+     "LEM + Above HIL RGI" = "#FF9800",
+    "Units Vacant" = "#9C27B0"
+  )) +
+  scale_y_continuous(labels = scales::comma, expand = expansion(mult = c(0.05, 0.17))) +
+  theme(
+    #axis.text.x = element_text(angle = 45, hjust = 1, size = 14),
+    #plot.title = element_text(hjust = 0.5, size = 16),
+    legend.position = "right",
+    plot.margin = margin(8, 8, 0, 8),
+      plot.title = element_text(size = 30 + add_size, lineheight = 0.9, face = "bold", margin = margin(0, 0, 6, 0)),
+      plot.title.position = "plot",
+      #plot.caption = element_text(colour = darker_gray_colour, size = 12, margin = margin(6, 4, 2, 20), hjust = 0),
+      #plot.caption.position = "plot",
+      #axis.title.x = element_text(face = "plain", size = 24, margin = margin(6, 0, 0, 0), lineheight = 0.9, hjust = 0.5, angle = 0),
+      axis.title.x = element_blank(),
+      axis.title.y = element_text(face = "plain", size = 26+ add_size, margin = margin(0, 6, 0, 0), lineheight = 0.9, hjust = 0.5),
+      axis.text.x = element_text(face = "plain",angle = 40, hjust = 1,size = 22+ add_size, lineheight = 0.9),
+      axis.text.y = element_text(face = "plain", size = 20+ add_size),
+      axis.ticks.x = element_line(colour = gray_colour, linewidth = 0.25),
+     #axis.ticks.y = element_blank(),
+      #axis.ticks.length = unit(0, "mm"),
+      axis.line.x = element_line(linewidth = 0.25, colour = gray_colour), 
+      text = element_text(colour = font_colour),
+    # axis.title.x = element_blank(),
+    legend.text = element_text(size=21+ add_size),
+    legend.title = element_text(size=23+ add_size, face = "bold"),
+    plot.caption = ggtext::element_markdown(size = 14+ add_size, hjust = 0, color = "grey50", margin = margin(t = 10, l = 5)),
+         strip.text = element_text(size = 24+ add_size)
+  ) +
+  geom_hline(yintercept = 0, color = "black", size = 0.5) +
+  # Add labels for total unit change above each bar
+  geom_text(
+    data = total_change,
+    aes(x = Program, y = label_placement + 600, 
+        label = label_text),
+    inherit.aes = FALSE, color = "black", size = 4
+  ) 
+  #scale_y_continuous(scales::comma())
+
+p1 <- girafe(ggobj = p1, options = list(opts_zoom(min = 0.21, max = 10))) # Adjust min and max zoom levels
+
+
+combined <- tagList(
+  tags$div(
+    style = "display: flex; justify-content: space-between; align-items: center; margin-bottom: -5px;", # Reduced bottom margin
+    tags$div(style = "flex: 1; margin-right: 10px;", p1)
+  ),
+  tags$p(
+    style = "text-align: left; margin-top: -5px; font-style: italic; color: #989898;", # Negative margin to reduce spacing
+    "Note: this plot is interactive. Look at the icons on the top right of each plot to enable different interactive actions, such as scrolling in or zooming. Hover over the bars to see more details about the funding amounts and programs."
+  )
+)
+
+# Save or display
+browsable(combined)
+
+add_size <- 2
+```
+
+
+
+### Total Unit Change by SM Area
+
+* Hover over or zoom in to see unit count for each service manager. 
+* Many regions had very little change at all, and a very select regions had large changes (more on these in the next figure).
+
+```{r, fig.width=8}
+sm_names <- readxl::read_excel(dp_23, sheet = "SMList") |> janitor::clean_names() |> select(sm_symbol, sm_short_name)
+
+units <- units |> left_join(sm_names, by = c("SMSymbol" = "sm_symbol")) |> mutate(sm_short_name = ifelse(is.na(sm_short_name), SMSymbol, sm_short_name))
+
+unit_summary <- units |>
+  select(`Total Units`, Program,  Year, sm_short_name) |>
+  group_by(Year,sm_short_name) |>
+  summarize(`Total Units` = sum(`Total Units`, na.rm = TRUE), .groups = "drop") |>
+  group_by(sm_short_name) |>
+  arrange(Year) |>
+  mutate( `Unit Change from 2020` = `Total Units` - first(`Total Units`)) |>
+  arrange(sm_short_name,desc(Year)) |>
+  slice(1)
+
+# Add custom tooltip content using `text` aesthetic
+p <- unit_summary |> 
+  ggplot(aes(
+    x = fct_reorder(sm_short_name, -`Unit Change from 2020`), 
+    y = `Unit Change from 2020`, 
+    fill = sm_short_name,
+    text = paste(
+      "Service Manager: ", sm_short_name, "<br>",
+      "Unit Change from 2020: ", scales::comma(`Unit Change from 2020`), "<br>",
+      "Total Units (2023): ", scales::comma(`Total Units`)
+    )
+  )) +
+  geom_bar(stat = "identity") +
+  labs(
+    title = "Change in Total Units between 2020 and 2023",
+    x = element_blank(),
+    y = "Unit Count Change from 2020",
+    fill = "Service Manager Area"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    plot.title = element_text(hjust = 0.5, size = 16),
+    legend.position = "none"
+  ) +
+  scale_y_continuous(
+    limits = c(-2000, 4100),
+    breaks = seq(-2000, 4000, by = 1000),
+    labels = scales::comma
+  ) +
+  geom_hline(yintercept = 0, color = "black", size = 0.5) 
+
+# Convert to Plotly and specify custom tooltip
+plotly::ggplotly(p, tooltip = "text")
+
+```
+
+### Units Change by Program and Service Manager
+
+* This figure order SM regions from total growth in units, to total loss of units.
+* Toronto rent supplement accounts for a massive proportion of all new growth in units.
+
+__Question:__
+
+* How much does COHB contribute to Toronto's rent supplement growth?
+* Where does Toronto's rent supplements go? Primarily for-profit landlords? Are any of these supplements tied to new construction? 
+* Look into Toronto's housing plan and TCHC annual report to see if they list recipients of rent supplements. 
+
+
+```{r, fig.width=13, fig.height=20, results='asis'}
+cat("<div style='max-height: 700px; overflow-y: auto; border: 1px solid #ccc; padding: 5px;'>")
+
+
+#heads and tails by program
+sm_to_check <- unit_summary |>   filter(!sm_short_name %in% c("MCS", "MOH", "DEB")) |>  ungroup() |> arrange(desc(`Unit Change from 2020`)) |> mutate(rank = row_number()) |>
+  #filter(rank < 5 | rank > 43) |> 
+  select(sm_short_name) |> pull()
+
+
+unit_summary_ht <- units |> filter(sm_short_name %in% sm_to_check) |> select(`Total Units`, Year, Program, sm_short_name) |>
+  group_by(Year, Program, sm_short_name) |>
+  summarize(`Total Units` = sum(`Total Units`, na.rm = TRUE), .groups = "drop") |>
+  group_by(sm_short_name, Program) |> 
+  arrange(Year) |>
+  mutate( `Unit Change from 2020` = ifelse(grepl("Agreement", Program), `Total Units` - 0, `Total Units` - first(`Total Units`))) |>
+  arrange(sm_short_name, Program, desc(Year)) |>
+  slice(1) |>
+  mutate(sm_short_name = factor(sm_short_name, levels = sm_to_check),
+         tooltip = paste0("Service Manager: ", sm_short_name, "<br>",
+                     "Program: ", Program, "<br>",
+                     "Unit Change from 2020: ", scales::comma(`Unit Change from 2020`), "<br>",
+                     "Total Units (2023): ", scales::comma(`Total Units`)))
+
+p <- unit_summary_ht |> ggplot(aes(x = Program, y = `Unit Change from 2020`, fill = Program)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.8), colour = "black") +
+  geom_col_interactive(
+     position = position_dodge(),
+    aes(tooltip = tooltip)
+  ) +
+  # Interactive labels
+  geom_text_interactive(
+    data = unit_summary_ht,
+    aes(
+      x = Program, 
+      y = `Unit Change from 2020`,
+      label = "",
+      tooltip = tooltip
+    ),
+    vjust = -0.5,
+    size = lab_size,
+    inherit.aes = FALSE
+  ) +
+  labs(
+    title = "SM with biggest increases or decreases in Units between 2020 and 2023",
+    x = element_blank(),
+    y = "Unit Change 2020 to 2023"
+  ) +
+   scale_fill_manual(values = c(
+    "01Public Housing" = "#4CAF50",
+    "02Rent Supplement" = "#FF9800",
+    "05Section 95 Private Non-Profit" = "#2196F3",
+    "06Provincial Reformed" = "#9C27B0",
+    "06Section 95 Municipal Non-Profit" = "#BDBDBD",
+    "07Post 85 Urban Native" = "#FFC107",
+    "08Pre 86 Urban Native" = "#8BC34A",
+    "11Service_Agreements" = "#FF5722"
+  )) +
+  theme_bw() +
+  theme(
+    #plot.title = element_text(hjust = 0.5, size = 16),
+    legend.position = "right",
+    plot.margin = margin(8, 8, 0, 8),
+      plot.title = element_text(size = 26 + add_size, lineheight = 0.9, face = "bold", margin = margin(0, 0, 6, 0)),
+      plot.title.position = "plot",
+    axis.text.x = element_blank(),
+    axis.text.y = element_text(size = 14),
+    axis.title.y = element_text(size = 14, face = "bold"),
+    legend.text = element_text(size = 11),
+    legend.title = element_text(size = 14, face = "bold"),
+    strip.text = element_text(size = 11),
+    axis.ticks.x = element_blank()
+  ) +
+  geom_hline(yintercept = 0, color = "black", size = 1) +
+  facet_wrap(~sm_short_name, scales = "free_y", ncol = 4)
+
+p <- girafe(ggobj = p, options = list(opts_zoom(min = 0.21, max = 10))) # Adjust min and max zoom levels
+browsable(p)
+```
+
+
